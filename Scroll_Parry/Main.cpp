@@ -47,17 +47,43 @@ void Main()
 	constexpr double SpawnInterval = 1.5;
 
 	bool gameOver = false;
+	bool started = false;
+	bool overHole = false;
+	bool falling = false;
 
 	while (System::Update())
 	{
+		//スタート処理
+		if (!started)
+		{
+			if (KeyEnter.down())
+			{
+				started = true;
+			}
+
+			// タイトル
+			FontAsset(U"GameFont")(U"「スクロールパリィ」").drawAt(Scene::Center().movedBy(0, -120), Palette::White);
+
+			// 操作方法
+			FontAsset(U"GameFont")(U"操作方法").drawAt(Scene::Center().movedBy(0, -40), Palette::White);
+
+			FontAsset(U"GameFont")(U"[SPACE] : ジャンプ").drawAt(Scene::Center().movedBy(0, 10), Palette::White);
+
+			FontAsset(U"GameFont")(U"[ENTER] : パリィ").drawAt(Scene::Center().movedBy(0, 50), Palette::White);
+
+			// 開始案内
+			FontAsset(U"GameFont")(U"[ENTER]でスタート").drawAt(Scene::Center().movedBy(0, 120), Palette::Yellow);
+
+			continue;
+		}
+
 		//スコア関係
 		int score = static_cast<int>(survivalTime) + killEnemys * 10;
 
-		double scrollSpeed = 6.0 + (score / 50) * 0.5;
-
+		double scrollSpeed = falling ? 0.3 : 6.0 + (score / 50) * 0.5;
 		double currentSpawnInterval = Max(0.5, 1.5 - survivalTime * 0.01);
 
-		if (!gameOver)
+		if (started && !gameOver)
 		{
 			// プレイヤー操作
 			if (KeySpace.down() && onGround)
@@ -70,16 +96,18 @@ void Main()
 			velocity.y += Gravity;
 			player.y += velocity.y;
 
-			bool overHole = false;
-
 			for (const auto& hole : holes)
 			{
-				if (player.center().x >= hole.rect.x &&
-					player.center().x <= hole.rect.rightX())
+				if (player.rightX() > hole.rect.x && player.x < hole.rect.rightX() && player.bottomY() >= GroundY)
 				{
 					overHole = true;
 					break;
 				}
+			}
+
+			if (overHole && player.y >= GroundY - player.h)
+			{
+				falling = true;
 			}
 
 			if (!overHole && player.y >= GroundY - player.h)
@@ -163,6 +191,8 @@ void Main()
 			});
 
 			// 当たり判定
+
+			// 障害物
 			for (const auto& obstacle : obstacles)
 			{
 				if (player.intersects(obstacle.rect))
@@ -173,7 +203,7 @@ void Main()
 			}
 
 			//敵処理
-			constexpr double ParryWindow = 0.05; //パリィ受付時間
+			constexpr double ParryWindow = 0.08; //パリィ受付時間
 
 			for (auto& enemy : enemies)
 			{
@@ -272,15 +302,44 @@ void Main()
 		}
 
 		//スコア系
-		FontAsset(U"GameFont")(U"Score:{}"_fmt(score)).draw(20, 20, Palette::White);
-		FontAsset(U"GameFont")(U"Kills:{}"_fmt(killEnemys)).draw(20, 60, Palette::White);
-		FontAsset(U"GameFont")(U"Time:{}"_fmt(static_cast<int>(survivalTime))).draw(20, 100, Palette::White);
-		FontAsset(U"GameFont")(U"Speed:{:.1f}"_fmt(scrollSpeed)).draw(20, 140, Palette::White);
-		FontAsset(U"GameFont")(U"Spawn:{:.2f}"_fmt(currentSpawnInterval)).draw(20, 180, Palette::White);
+		if (!gameOver)
+		{
+			FontAsset(U"GameFont")(U"Score:{}"_fmt(score)).draw(20, 20, Palette::White);
+			FontAsset(U"GameFont")(U"Kills:{}"_fmt(killEnemys)).draw(20, 60, Palette::White);
+			FontAsset(U"GameFont")(U"Time:{}"_fmt(static_cast<int>(survivalTime))).draw(20, 100, Palette::White);
+			FontAsset(U"GameFont")(U"Speed:{:.1f}"_fmt(scrollSpeed)).draw(20, 140, Palette::White);
+		}
 
+		//ゲームオーバー
 		if (gameOver)
 		{
-			FontAsset(U"GameFont")(U"GAME OVER").drawAt(Scene::Center(), Palette::White);
+			FontAsset(U"GameFont")(U"GAME OVER").drawAt(Scene::Center().movedBy(0, -80), Palette::White);
+
+			FontAsset(U"GameFont")(U"Score:{}"_fmt(score)).drawAt(Scene::Center().movedBy(0, -20), Palette::White);
+
+			FontAsset(U"GameFont")(U"Kills:{}"_fmt(killEnemys)).drawAt(Scene::Center().movedBy(0, 20), Palette::White);
+
+			FontAsset(U"GameFont")(U"Time:{}"_fmt(static_cast<int>(survivalTime))).drawAt(Scene::Center().movedBy(0, 60), Palette::White);
+
+			FontAsset(U"GameFont")(U"PRESS R TO RESTART").drawAt(Scene::Center().movedBy(0, 120), Palette::Yellow);
+
+			if (KeyR.down())
+			{
+				// 初期化
+				player = RectF{ 100,400,40,60 };
+				velocity = Vec2{ 0,0 };
+
+				enemies.clear();
+				holes.clear();
+				obstacles.clear();
+
+				killEnemys = 0;
+				survivalTime = 0.0;
+				spawnTimer = 0.0;
+
+				gameOver = false;
+				falling = false;
+			}
 		}
 	}
 }
